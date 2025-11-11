@@ -16,6 +16,7 @@ Key Features
 
 
 # Project Structure
+```text
 blockchain-voting-system/
 │
 ├── frontend/                           # React + TypeScript Frontend
