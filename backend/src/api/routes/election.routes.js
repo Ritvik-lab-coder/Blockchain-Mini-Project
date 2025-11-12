@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const electionController = require('../controllers/election.controller');
-const { authenticate, isAdmin, optionalAuth } = require('../middlewares/auth.middleware');
+const { authenticate, isAdmin, optionalAuth, authorizeRoles } = require('../middlewares/auth.middleware');
 const { validate, schemas } = require('../middlewares/validation.middleware');
 const asyncHandler = require('../middlewares/asyncHandler.middleware');
 
@@ -65,6 +65,22 @@ router.post(
     authenticate,
     isAdmin,
     asyncHandler(electionController.addEligibleVoter)
+);
+
+// Voter registers for election (during registration phase)
+router.post(
+    '/:electionId/register',
+    authenticate,
+    authorizeRoles('voter'),
+    electionController.registerForElection
+);
+
+// Check voter's registration status for election
+router.get(
+    '/:electionId/check-registration',
+    authenticate,
+    authorizeRoles('voter'),
+    electionController.checkRegistration
 );
 
 module.exports = router;

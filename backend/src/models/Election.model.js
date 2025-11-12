@@ -69,7 +69,7 @@ const electionSchema = new mongoose.Schema({
     },
     blockchainElectionId: {
         type: Number,
-        unique: true,
+        unique: false,
         sparse: true
     },
     contractAddress: {

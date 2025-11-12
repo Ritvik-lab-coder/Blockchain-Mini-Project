@@ -7,7 +7,7 @@ const authenticate = async (req, res, next) => {
     try {
         // Get token from header
         const authHeader = req.headers.authorization;
-        
+
         if (!authHeader || !authHeader.startsWith('Bearer ')) {
             return res.status(401).json({
                 status: 'error',
@@ -22,7 +22,7 @@ const authenticate = async (req, res, next) => {
 
         // Get user from database
         const user = await User.findById(decoded.id);
-        
+
         if (!user) {
             return res.status(401).json({
                 status: 'error',
@@ -47,7 +47,7 @@ const authenticate = async (req, res, next) => {
                 message: 'Invalid token. Please authenticate.'
             });
         }
-        
+
         if (error.name === 'TokenExpiredError') {
             return res.status(401).json({
                 status: 'error',
@@ -89,12 +89,12 @@ const isVoter = (req, res, next) => {
 const optionalAuth = async (req, res, next) => {
     try {
         const authHeader = req.headers.authorization;
-        
+
         if (authHeader && authHeader.startsWith('Bearer ')) {
             const token = authHeader.split(' ')[1];
             const decoded = jwt.verify(token, process.env.JWT_SECRET);
             const user = await User.findById(decoded.id);
-            
+
             if (user && user.isActive) {
                 req.user = user;
             }
@@ -106,9 +106,22 @@ const optionalAuth = async (req, res, next) => {
     }
 };
 
+const authorizeRoles = (...roles) => {
+    return (req, res, next) => {
+        if (!roles.includes(req.user.role)) {
+            return res.status(403).json({
+                status: 'error',
+                message: 'Access denied. Insufficient permissions.',
+            });
+        }
+        next();
+    };
+};
+
 module.exports = {
     authenticate,
     isAdmin,
     isVoter,
-    optionalAuth
+    optionalAuth,
+    authorizeRoles
 };
