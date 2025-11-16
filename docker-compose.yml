@@ -45,7 +45,7 @@ services:
 
   # Contract Deployer - Deploys smart contracts
   contract-deployer:
-    image: blockvote-deployer:latest
+    image: ritvik782/blockvote-deployer:latest
     container_name: blockvote-deployer
     build:
       context: ./blockchain
@@ -60,7 +60,7 @@ services:
 
   # Backend - Node.js API
   backend:
-    image: blockvote-backend:latest
+    image: ritvik782/blockvote-backend:latest
     container_name: blockvote-backend
     build:
       context: ./backend
@@ -108,7 +108,7 @@ services:
 
   # Frontend - React Application
   frontend:
-    image: blockvote-frontend:latest
+    image: ritvik782/blockvote-frontend:latest
     container_name: blockvote-frontend
     build:
       context: ./frontend
