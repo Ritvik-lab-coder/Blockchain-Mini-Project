@@ -1,0 +1,42 @@
+FROM node:20-alpine
+
+# Install required tools
+RUN apk add --no-cache \
+  python3 \
+  make \
+  g++ \
+  git \
+  curl
+
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+
+# Install dependencies
+RUN npm ci
+
+# Copy contracts and deployment scripts
+COPY contracts ./contracts
+COPY migrations ./migrations
+COPY truffle-config.js ./
+
+# Copy ZKP circuits and pre-compiled artifacts
+COPY circuits ./circuits
+
+# Create output directory for contract addresses
+RUN mkdir -p /shared
+
+# Copy deployment script
+COPY deploy.sh ./
+RUN chmod +x deploy.sh
+
+# Copy health check script
+COPY healthcheck.sh ./
+RUN chmod +x healthcheck.sh
+
+HEALTHCHECK --interval=10s --timeout=5s --start-period=30s --retries=5 \
+  CMD ./healthcheck.sh
+
+# Run deployment script
+CMD ["./deploy.sh"]

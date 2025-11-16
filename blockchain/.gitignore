@@ -20,7 +20,6 @@ build/circuits/
 
 # Truffle build artifacts
 build/contracts/
-*.json
 
 # Ganache database
 ganache-db/

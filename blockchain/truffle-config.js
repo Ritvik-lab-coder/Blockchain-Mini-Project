@@ -69,6 +69,13 @@ module.exports = {
       port: 7545,            // Standard Ethereum port (default: none)
       network_id: "*",       // Any network (default: none)
     },
+    docker: {
+      host: "ganache",  // Docker service name
+      port: 8545,
+      network_id: "*",
+      gas: 6721975,
+      gasPrice: 20000000000,
+    },
     //
     // An additional network, but with some advanced options…
     // advanced: {

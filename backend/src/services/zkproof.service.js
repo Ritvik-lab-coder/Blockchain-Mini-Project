@@ -5,11 +5,26 @@ const logger = require('../utils/logger');
 
 class ZKProofService {
     constructor() {
+        // Check if env vars are defined before resolving
+        if (!process.env.CIRCUIT_WASM_PATH) {
+            throw new Error('CIRCUIT_WASM_PATH environment variable not set');
+        }
+        if (!process.env.PROVING_KEY_PATH) {
+            throw new Error('PROVING_KEY_PATH environment variable not set');
+        }
+        if (!process.env.VERIFICATION_KEY_PATH) {
+            throw new Error('VERIFICATION_KEY_PATH environment variable not set');
+        }
+
         this.circuitWasmPath = path.resolve(process.env.CIRCUIT_WASM_PATH);
         this.provingKeyPath = path.resolve(process.env.PROVING_KEY_PATH);
         this.verificationKeyPath = path.resolve(process.env.VERIFICATION_KEY_PATH);
-        
         this.initialized = false;
+
+        logger.info('ZKProofService constructor - Paths configured:');
+        logger.info(`  WASM: ${this.circuitWasmPath}`);
+        logger.info(`  Proving Key: ${this.provingKeyPath}`);
+        logger.info(`  Verification Key: ${this.verificationKeyPath}`);
     }
 
     // Initialize and verify ZKP files exist

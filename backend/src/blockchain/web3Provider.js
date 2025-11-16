@@ -1,36 +1,116 @@
 const { Web3 } = require('web3');
+const fs = require('fs');
+const path = require('path');
 const logger = require('../utils/logger');
 
 class Web3Provider {
     constructor() {
         this.web3 = null;
         this.connected = false;
+        this.contractAddresses = null;
     }
 
     // Initialize Web3 connection
     async initialize() {
         try {
-            const ganacheUrl = process.env.GANACHE_URL || 'http://localhost:7545';
-            
+            // Use BLOCKCHAIN_NETWORK from env (docker: http://ganache:8545)
+            const ganacheUrl = process.env.BLOCKCHAIN_NETWORK || process.env.GANACHE_URL || 'http://localhost:8545';
+
             // Web3 v4.x syntax - direct URL initialization
             this.web3 = new Web3(ganacheUrl);
-            
+
             // Test connection
             const networkId = await this.web3.eth.net.getId();
             const accounts = await this.web3.eth.getAccounts();
-            
+
             this.connected = true;
-            
+
             logger.info('✅ Web3 connected to Ganache');
             logger.info(`📍 Network ID: ${networkId}`);
             logger.info(`👥 Available accounts: ${accounts.length}`);
-            
+
             return this.web3;
         } catch (error) {
             logger.error('❌ Web3 connection failed:', error);
             this.connected = false;
             throw error;
         }
+    }
+
+    // Load contract addresses from shared volume
+    loadContractAddresses() {
+        try {
+            // In Docker, contracts are at /shared/contracts.json (from deployer)
+            // In local dev, they might be in build/contracts
+            const dockerPath = '/shared/contracts.json';
+            const localPath = path.join(__dirname, '../../build/contracts.json');
+
+            let contractsPath = fs.existsSync(dockerPath) ? dockerPath : localPath;
+
+            if (fs.existsSync(contractsPath)) {
+                const data = fs.readFileSync(contractsPath, 'utf8');
+                this.contractAddresses = JSON.parse(data);
+
+                logger.info('✅ Contract addresses loaded successfully');
+                logger.info(`   From: ${contractsPath}`);  // Show which path was used
+                logger.info(`   ElectionManager: ${this.contractAddresses.ElectionManager}`);
+                logger.info(`   VotingSystem: ${this.contractAddresses.VotingSystem}`);
+                logger.info(`   Verifier: ${this.contractAddresses.Verifier}`);
+
+                return this.contractAddresses;
+            } else {
+                logger.warn('⚠️  Contract addresses file not found');
+                logger.warn(`   Tried Docker path: ${dockerPath}`);
+                logger.warn(`   Tried Local path: ${localPath}`);
+                return null;
+            }
+        } catch (error) {
+            logger.error('❌ Error loading contract addresses:', error);
+            return null;
+        }
+    }
+
+
+    // Wait for contracts to be deployed (for Docker startup)
+    async waitForContracts(timeout = 60000, interval = 2000) {
+        return new Promise((resolve, reject) => {
+            const startTime = Date.now();
+
+            logger.info('⏳ Waiting for contract deployment...');
+
+            const checkContracts = () => {
+                const addresses = this.loadContractAddresses();
+
+                if (addresses && addresses.ElectionManager && addresses.VotingSystem && addresses.Verifier) {
+                    logger.info('✅ Contracts found and loaded');
+                    resolve(addresses);
+                } else if (Date.now() - startTime > timeout) {
+                    reject(new Error('Timeout waiting for contract deployment'));
+                } else {
+                    logger.info('   Still waiting for contracts...');
+                    setTimeout(checkContracts, interval);
+                }
+            };
+
+            checkContracts();
+        });
+    }
+
+    // Get contract addresses
+    getContractAddresses() {
+        if (!this.contractAddresses) {
+            this.contractAddresses = this.loadContractAddresses();
+        }
+        return this.contractAddresses;
+    }
+
+    // Get specific contract address
+    getContractAddress(contractName) {
+        const addresses = this.getContractAddresses();
+        if (!addresses) {
+            throw new Error('Contract addresses not loaded');
+        }
+        return addresses[contractName];
     }
 
     // Get Web3 instance
@@ -79,7 +159,7 @@ class Web3Provider {
             const checkTransaction = async () => {
                 try {
                     const receipt = await this.web3.eth.getTransactionReceipt(txHash);
-                    
+
                     if (receipt) {
                         if (receipt.status) {
                             logger.info(`✅ Transaction confirmed: ${txHash}`);
@@ -95,9 +175,14 @@ class Web3Provider {
                     reject(error);
                 }
             };
-            
+
             checkTransaction();
         });
+    }
+
+    // Check if initialized
+    isInitialized() {
+        return this.connected && this.contractAddresses !== null;
     }
 }
 

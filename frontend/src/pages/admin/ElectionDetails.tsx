@@ -415,7 +415,7 @@ export const AdminElectionDetails = () => {
                                         fill="#8884d8"
                                         dataKey="votes"
                                     >
-                                        {chartData.map((entry, index) => (
+                                        {chartData.map((index: any) => (
                                             <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                                         ))}
                                     </Pie>

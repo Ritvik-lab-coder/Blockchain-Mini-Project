@@ -1,5 +1,5 @@
 import apiClient from '@/lib/axios';
-import { type ApiResponse, type Voter, type PaginatedResponse } from '@/types';
+import { type ApiResponse, type Voter } from '@/types';
 
 export const voterApi = {
     // Register as voter

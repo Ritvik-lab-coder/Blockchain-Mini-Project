@@ -2,7 +2,6 @@ import apiClient from '@/lib/axios';
 import {
     type ApiResponse,
     type Election,
-    type PaginatedResponse,
     type CreateElectionForm,
     type ElectionResults
 } from '@/types';

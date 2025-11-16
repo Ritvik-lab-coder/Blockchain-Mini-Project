@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -15,9 +14,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Separator } from '@/components/ui/separator';
 import { useCreateElection } from '@/hooks/useAdminElections';
-import { Plus, X, ArrowLeft, Loader2, Calendar } from 'lucide-react';
+import { Plus, X, ArrowLeft, Loader2 } from 'lucide-react';
 
 const createElectionSchema = z.object({
   title: z.string().min(3, 'Title must be at least 3 characters'),

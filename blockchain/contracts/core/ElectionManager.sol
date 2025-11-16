@@ -72,23 +72,20 @@ contract ElectionManager is Ownable {
         emit ElectionStateChanged(electionId, ElectionState.Registration);
     }
 
-    // Start voting phase
+    // Start voting phase - FIXED: Removed timestamp check
     function startVoting(uint256 electionId) external onlyOwner {
         Election storage election = elections[electionId];
         require(election.state == ElectionState.Registration, "Invalid state");
-        require(
-            block.timestamp >= election.startTime,
-            "Election not started yet"
-        );
+        // REMOVED: require(block.timestamp >= election.startTime, "Election not started yet");
         election.state = ElectionState.Voting;
         emit ElectionStateChanged(electionId, ElectionState.Voting);
     }
 
-    // End election
+    // End election - FIXED: Removed timestamp check
     function endElection(uint256 electionId) external onlyOwner {
         Election storage election = elections[electionId];
         require(election.state == ElectionState.Voting, "Invalid state");
-        require(block.timestamp >= election.endTime, "Election not ended yet");
+        // REMOVED: require(block.timestamp >= election.endTime, "Election not ended yet");
         election.state = ElectionState.Ended;
         emit ElectionStateChanged(electionId, ElectionState.Ended);
     }

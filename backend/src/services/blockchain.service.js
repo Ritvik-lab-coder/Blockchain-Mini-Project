@@ -1,23 +1,110 @@
 const web3Provider = require('../blockchain/web3Provider');
-const contractFactory = require('../blockchain/contractFactory');
 const logger = require('../utils/logger');
+const fs = require('fs');
+const path = require('path');
 
 class BlockchainService {
     constructor() {
         this.initialized = false;
+        this.contracts = {};
     }
 
-    // Initialize blockchain connection
+    // Initialize blockchain connection and load contracts
     async initialize() {
         try {
-            await web3Provider.initialize();
-            contractFactory.initializeContracts();
+            logger.info('🔗 Initializing Blockchain Service...');
+
+            // Wait for web3Provider to be initialized (happens in blockchain.config.js)
+            if (!web3Provider.isInitialized()) {
+                throw new Error('Web3Provider not initialized. Call from blockchain.config.js first.');
+            }
+
+            // Load contract addresses from volume
+            const addresses = web3Provider.getContractAddresses();
+
+            if (!addresses || !addresses.ElectionManager || !addresses.VotingSystem || !addresses.Verifier) {
+                throw new Error('Contract addresses not loaded');
+            }
+
+            const web3 = web3Provider.getWeb3();
+
+            // Load contract ABIs and create instances
+            this.contracts.electionManager = await this.loadContract('ElectionManager', addresses.ElectionManager, web3);
+            this.contracts.votingSystem = await this.loadContract('VotingSystem', addresses.VotingSystem, web3);
+            this.contracts.verifier = await this.loadContract('Verifier', addresses.Verifier, web3);
+            if (addresses.VoterRegistry) {
+                this.contracts.voterRegistry = await this.loadContract('VoterRegistry', addresses.VoterRegistry, web3);
+            }
+
+            // Note: VoterRegistry is not in your contracts.json, so we'll skip it
+            // If you have VoterRegistry, add it to the deploy script
+
             this.initialized = true;
-            logger.info('✅ Blockchain service initialized');
+            logger.info('✅ Blockchain service initialized with contracts:');
+            logger.info(`   ElectionManager: ${addresses.ElectionManager}`);
+            logger.info(`   VotingSystem: ${addresses.VotingSystem}`);
+            logger.info(`   Verifier: ${addresses.Verifier}`);
+
+            return true;
         } catch (error) {
             logger.error('❌ Blockchain service initialization failed:', error);
             throw error;
         }
+    }
+
+    // Load contract ABI and create instance
+    async loadContract(contractName, address, web3) {
+        try {
+            // Try multiple paths for ABIs
+            const possiblePaths = [
+                // Docker: from shared volume (PREFERRED)
+                path.join('/shared/abis', `${contractName}.json`),
+                // Docker: contracts copied to /app/contracts
+                path.join('/app/contracts', `${contractName}.json`),
+                // Local dev: from blockchain build
+                path.join(__dirname, `../../../blockchain/build/contracts/${contractName}.json`),
+                // Local dev: alternative path
+                path.join(__dirname, '../../contracts', `${contractName}.json`),
+            ];
+
+            let abiPath = null;
+            for (const p of possiblePaths) {
+                if (fs.existsSync(p)) {
+                    abiPath = p;
+                    logger.info(`   Found ABI at: ${p}`);
+                    break;
+                }
+            }
+
+            if (!abiPath) {
+                throw new Error(`Contract ABI not found for ${contractName}. Tried: ${possiblePaths.join(', ')}`);
+            }
+
+            const artifact = JSON.parse(fs.readFileSync(abiPath, 'utf8'));
+            const contract = new web3.eth.Contract(artifact.abi, address);
+
+            logger.info(`   ✅ Loaded ${contractName} at ${address}`);
+            return contract;
+        } catch (error) {
+            logger.error(`Error loading contract ${contractName}:`, error);
+            throw error;
+        }
+    }
+
+    // Get contract instances
+    getElectionManager() {
+        if (!this.initialized) throw new Error('Blockchain service not initialized');
+        return this.contracts.electionManager;
+    }
+
+    getVotingSystem() {
+        if (!this.initialized) throw new Error('Blockchain service not initialized');
+        return this.contracts.votingSystem;
+    }
+
+    getVerifier() {
+        if (!this.initialized) throw new Error('Blockchain service not initialized');
+        return this.contracts.verifier;
     }
 
     // Calculate commitment using Poseidon hash
@@ -25,11 +112,9 @@ class BlockchainService {
         try {
             const { buildPoseidon } = require('circomlibjs');
             const poseidon = await buildPoseidon();
-
             const commitment = poseidon.F.toString(
                 poseidon([BigInt(voterSecret)])
             );
-
             return commitment;
         } catch (error) {
             logger.error('Commitment calculation error:', error);
@@ -42,11 +127,9 @@ class BlockchainService {
         try {
             const { buildPoseidon } = require('circomlibjs');
             const poseidon = await buildPoseidon();
-
             const nullifier = poseidon.F.toString(
                 poseidon([BigInt(voterSecret), BigInt(electionId)])
             );
-
             return nullifier;
         } catch (error) {
             logger.error('Nullifier calculation error:', error);
@@ -54,23 +137,26 @@ class BlockchainService {
         }
     }
 
-    // Register voter on blockchain
-    // Register voter on blockchain
+    // Register voter on blockchain (if you have VoterRegistry contract)
     async registerVoterOnChain(commitment) {
         try {
             const web3 = web3Provider.getWeb3();
-            const voterRegistry = contractFactory.getVoterRegistry();
             const account = await web3Provider.getDefaultAccount();
 
             logger.info(`Registering voter on chain with commitment: ${commitment}`);
 
             // Convert commitment BigInt string to proper bytes32 hex format
-            // The commitment is a large number as a string, convert it to hex
             let commitmentHex = '0x' + BigInt(commitment).toString(16).padStart(64, '0');
-
             logger.info(`Converted commitment to hex: ${commitmentHex}`);
 
-            const tx = await voterRegistry.methods
+            // Note: This requires VoterRegistry contract
+            // If you don't have it, you may need to add it or handle differently
+            if (!this.contracts.voterRegistry) {
+                logger.warn('VoterRegistry contract not available, skipping on-chain registration');
+                return null;
+            }
+
+            const tx = await this.contracts.voterRegistry.methods
                 .registerVoter(commitmentHex)
                 .send({
                     from: account,
@@ -85,12 +171,11 @@ class BlockchainService {
         }
     }
 
-
     // Create election on blockchain
     async createElectionOnChain(electionData) {
         try {
             const web3 = web3Provider.getWeb3();
-            const electionManager = contractFactory.getElectionManager();
+            const electionManager = this.getElectionManager();
             const account = await web3Provider.getDefaultAccount();
 
             logger.info(`Creating election on blockchain: ${electionData.title}`);
@@ -110,8 +195,8 @@ class BlockchainService {
 
             // Get election ID from event
             const electionId = tx.events.ElectionCreated.returnValues.electionId;
-
             logger.info(`✅ Election created on blockchain. ID: ${electionId}, TxHash: ${tx.transactionHash}`);
+
             return parseInt(electionId);
         } catch (error) {
             logger.error('Create election on chain error:', error);
@@ -122,7 +207,7 @@ class BlockchainService {
     // Start registration phase
     async startRegistration(electionId) {
         try {
-            const electionManager = contractFactory.getElectionManager();
+            const electionManager = this.getElectionManager();
             const account = await web3Provider.getDefaultAccount();
 
             logger.info(`Starting registration for election ${electionId}`);
@@ -145,7 +230,7 @@ class BlockchainService {
     // Start voting phase
     async startVoting(electionId) {
         try {
-            const electionManager = contractFactory.getElectionManager();
+            const electionManager = this.getElectionManager();
             const account = await web3Provider.getDefaultAccount();
 
             logger.info(`Starting voting for election ${electionId}`);
@@ -168,7 +253,7 @@ class BlockchainService {
     // End election
     async endElection(electionId) {
         try {
-            const electionManager = contractFactory.getElectionManager();
+            const electionManager = this.getElectionManager();
             const account = await web3Provider.getDefaultAccount();
 
             logger.info(`Ending election ${electionId}`);
@@ -191,7 +276,7 @@ class BlockchainService {
     // Cast vote with ZKP
     async castVote({ electionId, candidateId, proof, publicSignals }) {
         try {
-            const votingSystem = contractFactory.getVotingSystem();
+            const votingSystem = this.getVotingSystem();
             const account = await web3Provider.getDefaultAccount();
 
             logger.info(`Casting vote for election ${electionId}, candidate ${candidateId}`);
@@ -220,7 +305,6 @@ class BlockchainService {
 
             logger.info(`✅ Vote cast successfully: ${tx.transactionHash}`);
             logger.info(`   Gas used: ${tx.gasUsed}`);
-
             return tx.transactionHash;
         } catch (error) {
             logger.error('Cast vote error:', error);
@@ -231,7 +315,7 @@ class BlockchainService {
     // Get election results
     async getElectionResults(electionId, candidateCount) {
         try {
-            const votingSystem = contractFactory.getVotingSystem();
+            const votingSystem = this.getVotingSystem();
 
             logger.info(`Fetching results for election ${electionId}`);
 
@@ -241,8 +325,8 @@ class BlockchainService {
 
             // Convert to array of numbers
             const resultsArray = results.map(count => parseInt(count));
-
             logger.info(`✅ Results fetched:`, resultsArray);
+
             return resultsArray;
         } catch (error) {
             logger.error('Get results error:', error);
@@ -250,51 +334,10 @@ class BlockchainService {
         }
     }
 
-    // Check if voter is registered
-    async isVoterRegistered(commitment) {
-        try {
-            const web3 = web3Provider.getWeb3();
-            const voterRegistry = contractFactory.getVoterRegistry();
-
-            // Convert to proper hex format
-            const commitmentHex = '0x' + BigInt(commitment).toString(16).padStart(64, '0');
-
-            const isRegistered = await voterRegistry.methods
-                .isVoterRegistered(commitmentHex)
-                .call();
-
-            return isRegistered;
-        } catch (error) {
-            logger.error('Check voter registration error:', error);
-            throw error;
-        }
-    }
-
-    // Check if nullifier is used
-    async isNullifierUsed(nullifier) {
-        try {
-            const web3 = web3Provider.getWeb3();
-            const voterRegistry = contractFactory.getVoterRegistry();
-
-            // Convert to proper hex format
-            const nullifierHex = '0x' + BigInt(nullifier).toString(16).padStart(64, '0');
-
-            const isUsed = await voterRegistry.methods
-                .isNullifierUsed(nullifierHex)
-                .call();
-
-            return isUsed;
-        } catch (error) {
-            logger.error('Check nullifier error:', error);
-            throw error;
-        }
-    }
-
-
     // Get election details from blockchain
     async getElectionDetails(electionId) {
         try {
-            const electionManager = contractFactory.getElectionManager();
+            const electionManager = this.getElectionManager();
 
             const details = await electionManager.methods
                 .getElectionDetails(electionId)

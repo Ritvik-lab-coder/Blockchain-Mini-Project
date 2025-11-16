@@ -1,5 +1,4 @@
 import { Link } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -10,7 +9,6 @@ import { useVoter, useRegisterVoter } from '@/hooks/useVoter';
 import { useElections } from '@/hooks/useElections';
 import { useVotingHistory } from '@/hooks/useElections';
 import { Vote, ListChecks, History, CheckCircle2, Clock, AlertCircle } from 'lucide-react';
-import { toast } from 'sonner';
 
 export const VoterDashboard = () => {
     const { data: voter, isLoading: voterLoading } = useVoter();

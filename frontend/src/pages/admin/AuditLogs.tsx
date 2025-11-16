@@ -9,14 +9,6 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
-import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from '@/components/ui/table';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import { useAuditLogs } from '@/hooks/useAdmin';
 import { Search, Activity, CheckCircle2, XCircle, Clock } from 'lucide-react';

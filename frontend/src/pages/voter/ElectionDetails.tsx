@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { useElection, useCanVote, useCastVote } from '@/hooks/useElections';
+import { useElection, useCastVote } from '@/hooks/useElections';
 import { electionApi } from '@/api/election.api';
 import { queryKeys } from '@/lib/queryClient';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
